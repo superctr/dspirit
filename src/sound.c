@@ -258,7 +258,7 @@ static inline void snd_fm_update_pitch(struct snd_channel* ch)
 	u8 octave;
 	const u16* base;
 
-	p.note = ch->transpose + 1;
+	p.note = ch->transpose;
 	p.frac = ch->detune;
 	p.pitch += ch->pitch + ch->peg_mod;
 
@@ -579,40 +579,40 @@ void snd_cmd_pan(struct snd_channel* ch, u8 arg)
 
 static const struct snd_cmd snd_cmd_table[34] =
 {
-/* 00 */ {1,snd_cmd_nop},
-/* 01 */ {2,snd_cmd_track_vol},
-/* 02 */ {2,snd_cmd_tempo_base},
-/* 03 */ {2,snd_cmd_tempo},
-/* 04 */ {3,snd_cmd_pat},
-/* 05 */ {1,snd_cmd_return},
-/* 06 */ {0,snd_cmd_key_on},
-/* 07 */ {0,snd_cmd_patch},
-/* 08 */ {0,snd_cmd_volume},
-/* 09 */ {3,snd_cmd_jump},
-/* 0a */ {1,snd_cmd_return}, //???
-/* 0b */ {3,snd_cmd_repeat},
-/* 0c */ {3,snd_cmd_loop},
-/* 0d */ {0,snd_cmd_transpose},
-/* 0e */ {0,snd_cmd_detune},
-/* 0f */ {0,snd_cmd_peg},
-/* 10 */ {0,snd_cmd_peg_rate},
-/* 11 */ {0,snd_cmd_legato},
-/* 12 */ {0,snd_cmd_gate_time},
-/* 13 */ {0,snd_cmd_peg_depth},
-/* 14 */ {0,snd_cmd_nop_ch}, // TODO: volume env
-/* 15 */ {0,snd_cmd_delay},
-/* 16 */ {0,snd_cmd_nop_ch}, // TODO: WSG request
-/* 17 */ {0,snd_cmd_nop_ch}, // TODO: DAC request
-/* 18 */ {0,snd_cmd_lfo}, // lfo
-/* 19 */ {0,snd_cmd_pan}, // pan
-/* 1a */ {0,snd_cmd_nop_ch}, // TODO: instrument flag ? (dspirit x68k)
-/* 1b */ {2,snd_cmd_nop}, // communication byte
-/* 1c */ {2,snd_cmd_nop}, // shadowld song 0e: song request
-/* 1d */ {3,snd_cmd_nop}, // TODO:request track
-/* 1e */ {3,snd_cmd_nop}, // TODO: request track
-/* 1f */ {1,snd_cmd_nop}, // not used
-/* 20 */ {2,snd_cmd_init},
-/* 21 */ {2,snd_cmd_nop}, // TODO: ADPCM request
+/* 00 */ {1,0,snd_cmd_nop},
+/* 01 */ {2,0,snd_cmd_track_vol},
+/* 02 */ {2,0,snd_cmd_tempo_base},
+/* 03 */ {2,0,snd_cmd_tempo},
+/* 04 */ {3,0,snd_cmd_pat},
+/* 05 */ {1,0,snd_cmd_return},
+/* 06 */ {0,1,snd_cmd_key_on},
+/* 07 */ {0,0,snd_cmd_patch},
+/* 08 */ {0,0,snd_cmd_volume},
+/* 09 */ {3,0,snd_cmd_jump},
+/* 0a */ {1,1,snd_cmd_return}, //???
+/* 0b */ {3,0,snd_cmd_repeat},
+/* 0c */ {3,0,snd_cmd_loop},
+/* 0d */ {0,0,snd_cmd_transpose},
+/* 0e */ {0,0,snd_cmd_detune},
+/* 0f */ {0,0,snd_cmd_peg},
+/* 10 */ {0,0,snd_cmd_peg_rate},
+/* 11 */ {0,0,snd_cmd_legato},
+/* 12 */ {0,0,snd_cmd_gate_time},
+/* 13 */ {0,0,snd_cmd_peg_depth},
+/* 14 */ {0,0,snd_cmd_nop_ch}, // TODO: volume env
+/* 15 */ {0,0,snd_cmd_delay},
+/* 16 */ {0,0,snd_cmd_nop_ch}, // TODO: WSG request
+/* 17 */ {0,0,snd_cmd_nop_ch}, // TODO: DAC request
+/* 18 */ {0,0,snd_cmd_lfo}, // lfo
+/* 19 */ {0,0,snd_cmd_pan}, // pan
+/* 1a */ {0,0,snd_cmd_nop_ch}, // TODO: instrument flag ? (dspirit x68k)
+/* 1b */ {2,0,snd_cmd_nop}, // communication byte
+/* 1c */ {2,0,snd_cmd_nop}, // shadowld song 0e: song request
+/* 1d */ {3,0,snd_cmd_nop}, // TODO:request track
+/* 1e */ {3,0,snd_cmd_nop}, // TODO: request track
+/* 1f */ {1,1,snd_cmd_nop}, // ctr: Empty row
+/* 20 */ {2,0,snd_cmd_init},
+/* 21 */ {2,0,snd_cmd_nop}, // TODO: ADPCM request
 };
 
 //=====================================================================
@@ -627,12 +627,11 @@ static void snd_read_command(struct snd_track* trk)
 		u8 cmd_type = cmd_byte & 0x3f;
 		if(cmd_type < 0x22)
 		{
-			if(cmd_type == 0x06)
-				snd_break = 1;
 			//KDebug_Alert("Reading command");
 			//KDebug_AlertNumber(trk->position);
 			//KDebug_AlertNumber(cmd_byte);
 			const struct snd_cmd* cmd_def = &snd_cmd_table[cmd_type];
+			snd_break = cmd_def->row_break;
 			if(cmd_def->length == 0)
 			{
 				struct snd_channel* ch = &trk->channels[0];

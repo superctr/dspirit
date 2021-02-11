@@ -122,6 +122,7 @@ typedef void (*snd_tcmd_ptr_t)(struct snd_track*, u8 arg);
 struct snd_cmd
 {
 	u8 length;
+	u8 row_break;
 	void* cmd_ptr;
 };
 
