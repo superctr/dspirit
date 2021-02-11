@@ -71,6 +71,10 @@ int main(u16 hard)
 				else
 					snd_stop_se();
 				break;
+			case MENU_ACTION_C: // Fade music
+				if(menu_cursor < ITEM_SE1)
+					snd_fade_bgm();
+				break;
 			case MENU_ACTION_START:
 				//pause ^= 1;
 				break;

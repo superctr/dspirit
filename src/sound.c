@@ -6,8 +6,44 @@
 
 #include <genesis.h>
 #include <kdebug.h>
+
 #include "sdata.h"
 #include "sound.h"
+
+//=====================================================================
+// CONSTANTS
+//=====================================================================
+
+#define SND_FADE_RATE 0x40
+#define SND_BGM_FM_ATTENUATE 6
+#define SND_BGM_PSG_ATTENUATE 0
+#define SND_SE_FM_ATTENUATE 0
+#define SND_SE_PSG_ATTENUATE 0
+
+enum
+{
+	SND_MODE_DISABLED = 0,
+	SND_MODE_FM = 1,
+	SND_MODE_PSG = 2,
+};
+
+enum
+{
+	ENV_MODE_TONE = 0x80,
+	ENV_MODE_CH3_ENABLE = 0x40,
+	ENV_MODE_CH3_TONE = 0x20,
+	ENV_MODE_CH3_FINE_TUNE = 0x10,
+	ENV_MODE_NOISE_ENABLE = 0x08,
+	ENV_MODE_NOISE_MODE = 0x07
+};
+enum
+{
+	SND_FLAG_FG = 0x80,
+	SND_FLAG_PATCH = 0x40, // FM patch defined
+	SND_FLAG_KEYON = 0x20,
+	SND_FLAG_KEYOFF = 0x10,
+	SND_FLAG_ENV = 0x08, // PSG envelope defined
+};
 
 //=====================================================================
 // VARIABLES
@@ -22,7 +58,14 @@ static u8 snd_track_se;
 static u8 snd_track_vol;
 static u8 snd_fm_attenuate;
 static u8 snd_psg_attenuate;
-static u8 snd_bgm_fade;
+static union
+{
+	u16 ctr;
+	struct {
+		u8 ctr_hi;
+		u8 ctr_lo;
+	};
+} snd_bgm_fade;
 static u8 snd_break;
 static void snd_kill_channel(struct snd_channel *channel);
 static inline void snd_update_track(struct snd_track *track, u8 se);
@@ -36,6 +79,7 @@ void snd_init()
 	Z80_loadDriver(Z80_DRIVER_2ADPCM,1);
 	memset(&snd_bgm, 0, sizeof(snd_bgm));
 	snd_se_flag = 0;
+	snd_bgm_fade.ctr = 0;
 }
 
 void snd_request_bgm(u8 id)
@@ -44,6 +88,11 @@ void snd_request_bgm(u8 id)
 }
 
 void snd_stop_bgm()
+{
+	snd_bgm.request = 0xfe;
+}
+
+void snd_fade_bgm()
 {
 	snd_bgm.request = 0xff;
 }
@@ -460,7 +509,7 @@ static inline void snd_psg_update_pitch(struct snd_channel* ch)
 	u8 octave;
 	const u16* base;
 
-	p.note = ch->transpose;
+	p.note = ch->transpose - 24;
 	p.frac = ch->detune;
 	p.pitch += ch->pitch + ch->peg_mod;
 
@@ -962,23 +1011,22 @@ static void snd_read_command(struct snd_track* trk)
 static inline void snd_update_track(struct snd_track* trk, u8 se)
 {
 	snd_track_se = se;
-	if(!snd_track_se)
-	{
-		snd_fm_attenuate = 6;
-		snd_psg_attenuate = 0;
-	}
 	if(trk->request)
 	{
-		if(!se && trk->request == 0xfe)
+		if(trk->request == 0xff)
 		{
-
+			snd_bgm_fade.ctr += SND_FADE_RATE;
+			if(snd_bgm_fade.ctr > 0x3f00)
+				trk->request = 0xfe;
 		}
-		else
+		if(!se && trk->request != 0xff)
 		{
+			snd_bgm_fade.ctr = 0;
+
 			for(int ch = 0; ch < 8; ch ++)
 				snd_kill_channel(&trk->channels[ch]);
 
-			if(trk->request == 0xff)
+			if(trk->request == 0xfe)
 			{
 				// stop request
 				trk->current_id = 0;
@@ -1000,12 +1048,42 @@ static inline void snd_update_track(struct snd_track* trk, u8 se)
 				YM2612_writeReg(0, 0x2b, 0x00);
 				release_z80();
 			}
+			trk->request = 0;
 		}
-		trk->request = 0;
 	}
 
 	if(trk->current_id)
 	{
+		if(!se)
+		{
+			snd_fm_attenuate = SND_SE_FM_ATTENUATE + snd_bgm_fade.ctr_hi;
+			snd_psg_attenuate = SND_SE_PSG_ATTENUATE + snd_bgm_fade.ctr_hi;
+			if(snd_bgm_fade.ctr_hi)
+			{
+				struct snd_channel* ch = &trk->channels[0];
+				while(ch < &trk->channels[8])
+				{
+					if(ch->flag & SND_FLAG_FG)
+					{
+						switch(ch->mode)
+						{
+							case SND_MODE_FM:
+								snd_fm_write_volume(ch);
+								break;
+							case SND_MODE_PSG:
+								snd_psg_write_volume(ch);
+								break;
+						}
+					}
+					ch++;
+				}
+			}
+		}
+		else
+		{
+			snd_fm_attenuate = SND_SE_FM_ATTENUATE;
+			snd_psg_attenuate = SND_SE_PSG_ATTENUATE;
+		}
 		snd_track_vol = trk->volume;
 
 		trk->update_time--;
@@ -1022,8 +1100,6 @@ static inline void snd_update_track(struct snd_track* trk, u8 se)
 			{
 				switch(ch->mode)
 				{
-					case SND_MODE_DISABLED:
-						break;
 					case SND_MODE_FM:
 						snd_fm_update(ch);
 						break;
