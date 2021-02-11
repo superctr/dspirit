@@ -3,6 +3,7 @@
 	.export area5
 .proc area5
 song008_start:
+	INIT        %11111111 ; missing from original data
 	TVOL        250
 	TEMPO       001
 	SPEED       008

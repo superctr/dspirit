@@ -3,6 +3,7 @@
 	.export area8
 .proc area8
 song00b_start:
+	INIT        %11111111 ; missing from original data
 	TEMPO       001
 	SPEED       012
 	PIT         ___,___,___,___,___,___,___,004

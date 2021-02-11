@@ -15,14 +15,14 @@
 ;.endmacro
 
 .macro _NOP
-	.byt	$00
+	.byt	$80
 .endmacro
 
 ; JUMP to location
 ;------------------------------------------------------------------------------
 ; addr .... destination address
 .macro JUMP addr
-	.byte	$09
+	.byte	$89
 	POS	addr
 .endmacro
 
@@ -30,20 +30,20 @@
 ;------------------------------------------------------------------------------
 ; addr .... destination address
 .macro CALL addr
-	.byte	$04
+	.byte	$84
 	POS	addr
 .endmacro
 
 ; RETurn from subroutine or end song
 ;------------------------------------------------------------------------------
 .macro RET
-	.byt	$05
+	.byt	$85
 .endmacro
 
 ; END song
 ;------------------------------------------------------------------------------
 .macro END
-	.byt	$0a
+	.byt	$a5
 .endmacro
 
 ; REPEAT section
@@ -54,7 +54,7 @@
 ; count ... times to repeat
 ; addr .... starting point
 .macro REPT count, addr
-	.byte	$0b
+	.byte	$8b
 	.byt	count
 	POS	addr
 .endmacro
@@ -67,39 +67,39 @@
 ; count ... times to loop
 ; addr .... exit address
 .macro LOOP count, addr
-	.byte	$0c
+	.byte	$8c
 	.byt	count
 	POS	addr
 .endmacro
 
 ; play subsong on track
 ;------------------------------------------------------------------------------
-.macro TRACK slot, id
-	.byte $1d,<slot,<id
-.endmacro
+;.macro TRACK slot, id
+;	.byte $9d,<slot,<id
+;.endmacro
 
 ; track variables
 ;------------------------------------------------------------------------------
-; tempo (BPM=9600/tempo with a speed value of 12)
+; tempo (BPM=900/tempo with a speed value of 1)
 .macro TEMPO p0
-	.byte $02,<p0
+	.byte $82,<p0
 .endmacro
 ; speed  (tempo units per row)
 .macro SPEED p0
-	.byte $03,<p0
+	.byte $83,<p0
 .endmacro
 ; track volume
 .macro TVOL p0
-	.byte $01,<p0
+	.byte $81,<p0
 .endmacro
 
 ; request PCM sample
 .macro PCM p0
-	.byte $21,<p0
+	.byte $9b,<p0
 .endmacro
 ; communication byte
 .macro COMM p0
-	.byte $1b,<p0
+	.byte $99,<p0
 .endmacro
 
 ; channel variables (initialization)
@@ -107,7 +107,7 @@
 ; Set channel number
 ; p0-p7 : Voice number
 .macro INIT p0
-	.byte $20,<p0
+	.byte $9a,<p0
 .endmacro
 
 ; channel variables
@@ -122,7 +122,7 @@
 .endmacro
 ; Pan (fixed)
 .macro PAN p0,p1,p2,p3,p4,p5,p6,p7
-	__chvar $19,p0,p1,p2,p3,p4,p5,p6,p7
+	__chvar $17,p0,p1,p2,p3,p4,p5,p6,p7
 .endmacro
 ; Detune (frequency low)
 .macro DTN p0,p1,p2,p3,p4,p5,p6,p7
@@ -154,7 +154,7 @@
 .endmacro
 ; LFO (255=disable)
 .macro LFO p0,p1,p2,p3,p4,p5,p6,p7
-	__chvar $18,p0,p1,p2,p3,p4,p5,p6,p7
+	__chvar $16,p0,p1,p2,p3,p4,p5,p6,p7
 .endmacro
 ; Legato (the following <n> notes will be tied)
 .macro LEG p0,p1,p2,p3,p4,p5,p6,p7
@@ -162,7 +162,7 @@
 .endmacro
 ; Reassign channel
 .macro CHANNEL p0,p1,p2,p3,p4,p5,p6,p7
-	__chvar $22,p0,p1,p2,p3,p4,p5,p6,p7
+	__chvar $18,p0,p1,p2,p3,p4,p5,p6,p7
 .endmacro
 ; Volume envelope (might reuse for PSG env)
 .macro ENV p0,p1,p2,p3,p4,p5,p6,p7
@@ -172,5 +172,5 @@
 ;------------------------------------------------------------------------------
 ; Note  (frequency high)
 .macro FRQ p0,p1,p2,p3,p4,p5,p6,p7
-	__keyon $06,p0,p1,p2,p3,p4,p5,p6,p7
+	__keyon $26,p0,p1,p2,p3,p4,p5,p6,p7
 .endmacro

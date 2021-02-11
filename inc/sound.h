@@ -11,26 +11,45 @@
 enum
 {
 	SND_MODE_DISABLED = 0,
-	SND_MODE_FM = 1
+	SND_MODE_FM = 1,
+	SND_MODE_PSG = 2,
 };
 
 enum
 {
-	SND_FLAG_PATCH = 0x80,
-	SND_FLAG_KEYON = 0x40,
-	SND_FLAG_BG = 0x02,
-	SND_FLAG_FG = 0x01,
+	ENV_MODE_TONE = 0x80,
+	ENV_MODE_CH3_ENABLE = 0x40,
+	ENV_MODE_CH3_TONE = 0x20,
+	ENV_MODE_CH3_FINE_TUNE = 0x10,
+	ENV_MODE_NOISE_ENABLE = 0x08,
+	ENV_MODE_NOISE_MODE = 0x07
+};
+enum
+{
+	SND_FLAG_FG = 0x80,
+	SND_FLAG_PATCH = 0x40, // FM patch defined
+	SND_FLAG_KEYON = 0x20,
+	SND_FLAG_KEYOFF = 0x10,
+	SND_FLAG_ENV = 0x08, // PSG envelope defined
 };
 
 struct snd_fm
 {
 	u8 part;
 	u8 offset;
-
 	const u8* patch_ptr;
 	u8 patch_lfo;
 	u8 carrier;
 	u8 tl[4];
+};
+
+struct snd_psg
+{
+	u8 offset;
+	u8 env_mode;
+	const u8* env_ptr;
+	u8 env_phase;
+	u8 env_counter;
 };
 
 struct snd_channel
@@ -41,6 +60,8 @@ struct snd_channel
 	u8 flag;
 
 	u8 patch;
+	u8 env;
+
 	u8 legato;
 	u8 transpose;
 	u8 detune;
@@ -82,6 +103,7 @@ struct snd_channel
 	union
 	{
 		struct snd_fm fm;
+		struct snd_psg psg;
 	};
 };
 
@@ -113,11 +135,12 @@ struct snd_track
 	struct snd_channel channels[8];
 };
 
-struct snd_track snd_bgm;
-struct snd_track snd_se;
+extern struct snd_track snd_bgm;
+extern struct snd_track snd_se;
+extern u16 snd_se_flag;
 
-typedef void (*snd_vcmd_ptr_t)(struct snd_channel*, u8 length);
-typedef void (*snd_tcmd_ptr_t)(struct snd_track*, u8 arg);
+typedef void (*snd_vcmd_ptr_t)(struct snd_channel*, u8 arg);
+typedef void (*snd_tcmd_ptr_t)(struct snd_track*);
 
 struct snd_cmd
 {

@@ -40,7 +40,7 @@ OBJS = \
 	$(OBJ)/init.o \
 	$(OBJ)/opening.o \
 	$(OBJ)/departure.o \
-	$(OBJ)/area1.o \
+	$(OBJ)/area1_md.o \
 	$(OBJ)/area2.o \
 	$(OBJ)/area3.o \
 	$(OBJ)/area4.o \

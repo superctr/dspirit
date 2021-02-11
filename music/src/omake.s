@@ -3,6 +3,7 @@
 	.export omake
 .proc omake
 song042_start:
+	INIT        %11111111 ; missing from original data
 	TVOL        250
 	TEMPO       001
 song042_jmp000:

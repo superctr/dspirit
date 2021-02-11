@@ -116,6 +116,7 @@ void draw_status(u16 x, u16 y)
 	sprintf(buf, "%04x", snd_bgm.position);
 	VDP_setTextPalette((pause) ? 1 : 0);
 	VDP_drawText(buf, x, y);
+#if 1
 	sprintf(buf, "%02x %02x %02x %02x %02x %02x %02x %02x",
 			snd_bgm.channels[0].patch,
 			snd_bgm.channels[1].patch,
@@ -125,6 +126,14 @@ void draw_status(u16 x, u16 y)
 			snd_bgm.channels[5].patch,
 			snd_bgm.channels[6].patch,
 			snd_bgm.channels[7].patch);
+	VDP_drawText(buf, x, y+1);
+#else
+	sprintf(buf, "%02x %02x %02x %04x",
+			snd_bgm.channels[0].env,
+			snd_bgm.channels[0].psg.env_mode,
+			snd_bgm.channels[0].psg.env_phase,
+			snd_bgm.channels[0].psg.env_counter);
+#endif
 	VDP_drawText(buf, x, y+1);
 	sprintf(buf, "%02x %02x %02x %02x %02x %02x %02x %02x",
 			snd_bgm.channels[0].volume,

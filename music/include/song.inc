@@ -8,10 +8,10 @@
 
 .scope	Q
 	RESTCNT		.set	0
-	
+
 	; register operation (this means 'rXX' will be treated as immediate)
 	regop		.set	0
-	
+
 	; these are all filled in by __parse_arg or __parse_args macros
 	arg0		.set	0
 	arg1		.set	0
@@ -28,18 +28,18 @@
 	arg12		.set	0
 	arg13		.set	0
 	arg14		.set	0
-	
+
 	imm_mask	.set	0	; bitmask of immediate type operands
 	reg_mask	.set	0	; bitmask of register type operands
 	nul_mask	.set	0	; bitmask of unused operands
-	
+
 	imm_equal	.set	0	; set if all immediate operands were equal
 	imm_data	.set	0	; data of first immediate operand
 	imm_word	.set	0	; set if at least one immediate operand is 16-bit
-	
+
 	reg_equal	.set	0	; set if all register operands were equal
 	reg_data	.set	0	; data of first register operand
-	
+
 .endscope
 
 .include	"regdef.inc"
@@ -85,7 +85,7 @@
 	.ifnblank __in
 		__out	.set	__in
 	.endif
-	
+
 	.if (__out<___)	; immediate
 		.if(Q::imm_data = ___)
 			Q::imm_data .set __out
@@ -99,7 +99,7 @@
 	.else				; neither
 		Q::nul_mask .set Q::nul_mask | __mask
 	.endif
-	
+
 .endmacro
 
 .macro	__parse_args	p0,p1,p2,p3,p4,p5,p6,p7
@@ -147,7 +147,7 @@
 	__parse_arg		p12,Q::arg12,%0000000000001000
 	__parse_arg		p13,Q::arg13,%0000000000000100
 	__parse_arg		p14,Q::arg14,%0000000000000010
-	
+
 	Q::imm_mask		.set	Q::imm_mask | Q::reg_mask
 .endmacro
 
@@ -165,13 +165,13 @@
 
 	__parse_args p0,p1,p2,p3,p4,p5,p6,p7
 
-	.if (Q::nul_mask = $ff)	
-		.byte	$1f
+	.if (Q::nul_mask = $ff)
+		.byte	$a0
 		.exitmacro
 	.endif
 
 	.if (Q::imm_equal = 1)
-		.byte	type+64
+		.byte	type+$40
 		.byte	Q::imm_mask
 		.byte	<Q::imm_data
 	.else
@@ -195,14 +195,14 @@
 	.local _bt,_wt,_rt
 
 	__parse_args p0,p1,p2,p3,p4,p5,p6,p7
-	
-	.if (Q::nul_mask = $ff)	
+
+	.if (Q::nul_mask = $ff)
 		.exitmacro
 	.endif
 
 	.if (Q::imm_mask > 0)
 		.if (Q::imm_equal = 1)
-			.byte	btype+64
+			.byte	btype+$40
 			.byte	Q::imm_mask
 			.byte	<Q::imm_data
 		.else
