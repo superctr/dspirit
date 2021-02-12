@@ -528,7 +528,7 @@ static inline void snd_psg_update_pitch(struct snd_channel* ch)
 	{
 		ch->last_pitch = p.pitch;
 
-		if(ch->psg.env_mode & ENV_MODE_TONE)
+		if((ch->psg.env_mode & ENV_MODE_TONE) || ch->psg.offset == 0xc0)
 		{
 			if(ch->psg.env_mode & ENV_MODE_2CH_FINE_TUNE && !ch->psg.link)
 				p.pitch -= (s8) ch->psg.env_ptr[1];
@@ -1140,6 +1140,7 @@ static inline void snd_update_track(struct snd_track* trk, u8 se)
 				//KDebug_AlertNumber(trk->position);
 				take_z80();
 				YM2612_writeReg(0, 0x2b, 0x00);
+				YM2612_writeReg(0, 0x27, 0x00);
 				release_z80();
 			}
 			trk->request = 0;
