@@ -25,6 +25,8 @@ struct snd_psg
 	const u8* env_ptr;
 	u8 env_phase;
 	u8 env_counter;
+	u8 link;
+	u8 link_vol;
 };
 
 struct snd_channel

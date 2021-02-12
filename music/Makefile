@@ -39,9 +39,9 @@ OBJS = \
 	$(OBJ)/_patch.o \
 	$(OBJ)/init.o \
 	$(OBJ)/opening.o \
-	$(OBJ)/departure.o \
+	$(OBJ)/departure_md.o \
 	$(OBJ)/area1_md.o \
-	$(OBJ)/area2.o \
+	$(OBJ)/area2_md.o \
 	$(OBJ)/area3.o \
 	$(OBJ)/area4.o \
 	$(OBJ)/area5.o \

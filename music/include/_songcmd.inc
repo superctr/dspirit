@@ -102,6 +102,14 @@
 	.byte $99,<p0
 .endmacro
 
+; FMch3 byte
+.macro CH3 flag,note,ofs1,ofs2,ofs3
+	.byte $9c,flag
+	.if flag > 0
+		.byte note,ofs2,ofs3,ofs1
+	.endif
+.endmacro
+
 ; channel variables (initialization)
 ;------------------------------------------------------------------------------
 ; Set channel number
@@ -167,6 +175,14 @@
 ; Volume envelope (might reuse for PSG env)
 .macro ENV p0,p1,p2,p3,p4,p5,p6,p7
 	__chvar $14,p0,p1,p2,p3,p4,p5,p6,p7
+.endmacro
+; Link mode (allows PSG 2CH mode to use note from another channel)
+.macro LINK p0,p1,p2,p3,p4,p5,p6,p7
+	__chvar $0a,p0,p1,p2,p3,p4,p5,p6,p7
+.endmacro
+; Link mode volume
+.macro LINKVOL p0,p1,p2,p3,p4,p5,p6,p7
+	__chvar $1d,p0,p1,p2,p3,p4,p5,p6,p7
 .endmacro
 ; key on
 ;------------------------------------------------------------------------------

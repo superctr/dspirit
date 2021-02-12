@@ -98,7 +98,7 @@ int main(u16 hard)
 void init_menu()
 {
 	VDP_clearPlane(0, FALSE);
-	menu_add_item(ITEM_BGM, "BGM", 2, 0, 0x7f);
+	menu_add_item(ITEM_BGM, "BGM", 4, 0, 0x7f);
 	menu_add_item(ITEM_SE1, "SE1", 0, 0, 1);
 
 	menu_init(ITEM_MAX);

@@ -30,9 +30,9 @@ enum
 enum
 {
 	ENV_MODE_TONE = 0x80,
-	ENV_MODE_CH3_ENABLE = 0x40,
-	ENV_MODE_CH3_TONE = 0x20,
-	ENV_MODE_CH3_FINE_TUNE = 0x10,
+	ENV_MODE_2CH_ENABLE = 0x40,
+	ENV_MODE_2CH_TONE = 0x20,
+	ENV_MODE_2CH_FINE_TUNE = 0x10,
 	ENV_MODE_NOISE_ENABLE = 0x08,
 	ENV_MODE_NOISE_MODE = 0x07
 };
@@ -53,6 +53,7 @@ struct snd_track snd_bgm;
 struct snd_track snd_se;
 u16 snd_se_flag;
 
+static const u16 snd_fm_fnum_table[21];
 static const s8 snd_psg_vol_table[128];
 static u8 snd_track_se;
 static u8 snd_track_vol;
@@ -199,6 +200,12 @@ static void snd_update_peg(struct snd_channel* ch)
 //=====================================================================
 // FM SOUND UPDATE
 //=====================================================================
+static inline void snd_write_fm_common(u8 reg, u8 data)
+{
+	while (YM2612_read(0) & 0x80);
+	YM2612_writeReg(0, reg, data);
+}
+
 static inline void snd_write_fm(struct snd_channel* ch, u8 reg, u8 data)
 {
 	while (YM2612_read(0) & 0x80);
@@ -311,7 +318,6 @@ static inline void snd_fm_update_lfo(struct snd_channel* ch)
 
 static inline void snd_fm_update_pitch(struct snd_channel* ch)
 {
-	static const u16 fnum[13] = {644, 681, 722, 765, 810, 858, 910, 964, 1021, 1081, 1146, 1214, 1288};
 	union
 	{
 		u16 pitch;
@@ -333,7 +339,7 @@ static inline void snd_fm_update_pitch(struct snd_channel* ch)
 		ch->last_pitch = p.pitch;
 
 		octave = p.note / 12;
-		base = &fnum[p.note % 12];
+		base = &snd_fm_fnum_table[p.note % 12];
 
 		p.pitch = base[0] + (((base[1] - base[0]) * p.frac) >> 8) + ((octave & 7) << 11);
 
@@ -378,15 +384,15 @@ static inline void snd_psg_write_volume(struct snd_channel* ch)
 	s8 vol_index = (ch->volume >> 1) - snd_psg_attenuate;
 	if(vol_index < 0)
 		vol_index = 0;
-	s8 vol = snd_psg_vol_table[vol_index] - (ch->psg.env_counter >> 4);
+	s8 vol = snd_psg_vol_table[(u8)vol_index] - (ch->psg.env_counter >> 4);
 	if(vol < 0)
 		vol = 0;
 	else if(vol > 0x0f)
 		vol = 0x0f;
 	if(ch->psg.env_mode & ENV_MODE_TONE)
-		PSG_write(ch->psg.offset | 0x10 | vol);
-	if(ch->psg.env_mode & ENV_MODE_CH3_TONE)
-		PSG_write(0xd0 | vol);
+		PSG_write((ch->psg.offset + 0x10) | vol);
+	if(ch->psg.env_mode & ENV_MODE_2CH_TONE)
+		PSG_write((ch->psg.offset + 0x30) | ((vol + ch->psg.link_vol) > 15 ? 15 : vol + ch->psg.link_vol));
 	if(ch->psg.env_mode & ENV_MODE_NOISE_ENABLE)
 		PSG_write(0xf0 | vol);
 }
@@ -398,15 +404,17 @@ static inline void snd_psg_write_noise(struct snd_channel* ch)
 
 static inline void snd_psg_write_freq(u8 channel, u16 data)
 {
+	if(data > 1023)
+		data = 1023;
 	PSG_write(channel | (data & 0x0f));
-	PSG_write((data >> 4) & 0x7f);
+	PSG_write(data >> 4);
 }
 
 static inline void snd_psg_set_env(struct snd_channel* ch)
 {
 	// Clear previous env mode if needed
-	if(ch->psg.env_mode & ENV_MODE_CH3_TONE)
-		PSG_write(0xdf);
+	if(ch->psg.env_mode & ENV_MODE_2CH_TONE)
+		PSG_write(ch->psg.offset + 0x3f);
 	if(ch->psg.env_mode & ENV_MODE_NOISE_ENABLE)
 		PSG_write(0xff);
 
@@ -417,7 +425,7 @@ static inline void snd_psg_set_env(struct snd_channel* ch)
 	ch->last_pitch = 0xffff;
 
 	if(!(ch->psg.env_mode & ENV_MODE_TONE))
-		PSG_write(ch->psg.offset | 0x1f);
+		PSG_write(ch->psg.offset + 0x1f);
 }
 
 static inline void snd_psg_update_env(struct snd_channel* ch)
@@ -485,6 +493,9 @@ static inline void snd_psg_update_reset(struct snd_channel* ch)
 		snd_set_peg(ch);
 	}
 	ch->peg_mod = 0;
+
+	if(ch->psg.link)
+		ch->last_pitch = 0xffff;
 }
 
 static inline void snd_psg_update_gate(struct snd_channel* ch)
@@ -519,7 +530,7 @@ static inline void snd_psg_update_pitch(struct snd_channel* ch)
 
 		if(ch->psg.env_mode & ENV_MODE_TONE)
 		{
-			if(ch->psg.env_mode & ENV_MODE_CH3_FINE_TUNE)
+			if(ch->psg.env_mode & ENV_MODE_2CH_FINE_TUNE && !ch->psg.link)
 				p.pitch -= (s8) ch->psg.env_ptr[1];
 			octave = p.note / 12;
 			base = &fnum[p.note % 12];
@@ -528,11 +539,16 @@ static inline void snd_psg_update_pitch(struct snd_channel* ch)
 			snd_psg_write_freq(ch->psg.offset, pitch);
 		}
 
-		if(ch->psg.env_mode & ENV_MODE_CH3_ENABLE)
+		if(ch->psg.env_mode & ENV_MODE_2CH_ENABLE)
 		{
-			if(ch->psg.env_ptr[1] || !(ch->psg.env_mode & ENV_MODE_TONE))
+			if(ch->psg.env_ptr[1] || ch->psg.link || !(ch->psg.env_mode & ENV_MODE_TONE))
 			{
-				if(ch->psg.env_mode & ENV_MODE_CH3_FINE_TUNE)
+				if(ch->psg.link)
+				{
+					p.note = snd_bgm.channels[ch->psg.link - 1].transpose - 24;
+					p.note += snd_bgm.channels[ch->psg.link - 1].note;
+				}
+				if(ch->psg.env_mode & ENV_MODE_2CH_FINE_TUNE)
 					p.pitch += ((s8) ch->psg.env_ptr[1]) << 1;
 				else
 					p.note += (s8) ch->psg.env_ptr[1];
@@ -541,7 +557,7 @@ static inline void snd_psg_update_pitch(struct snd_channel* ch)
 				base = &fnum[p.note % 12];
 				pitch = base[0] + (((base[1] - base[0]) * p.frac) >> 8);
 				pitch >>= octave;
-				snd_psg_write_freq(0xc0, pitch);
+				snd_psg_write_freq(ch->psg.offset + 0x20, pitch);
 			}
 		}
 
@@ -592,9 +608,9 @@ static void snd_free_channel(struct snd_channel* ch)
 {
 	if(ch->mode == SND_MODE_PSG && ch->flag & SND_FLAG_FG)
 	{
-		PSG_write(ch->psg.offset | 0x1f);
-		if(ch->psg.env_mode & ENV_MODE_CH3_TONE)
-			PSG_write(0xdf);
+		PSG_write(ch->psg.offset + 0x1f);
+		if(ch->psg.env_mode & ENV_MODE_2CH_TONE)
+			PSG_write(ch->psg.offset + 0x3f);
 		if(ch->psg.env_mode & ENV_MODE_NOISE_ENABLE)
 			PSG_write(0xff);
 	}
@@ -607,6 +623,8 @@ static void snd_free_channel(struct snd_channel* ch)
 		snd_write_fm(ch, 0x48, 127);
 		snd_write_fm(ch, 0x4c, 127);
 		release_z80();
+		ch->psg.link = 0;
+		ch->psg.link_vol = 0;
 	}
 	ch->mode = SND_MODE_DISABLED;
 }
@@ -635,7 +653,12 @@ void snd_assign_channel(struct snd_channel* ch, u8 arg)
 	if(arg > 6)
 	{
 		ch->mode = SND_MODE_PSG;
-		ch->psg.offset = (arg == 7) ? 0x80 : 0xa0;
+		if(arg == 7)
+			ch->psg.offset = 0x80;
+		else if(arg == 8)
+			ch->psg.offset = 0xa0;
+		else
+			ch->psg.offset = 0xc0;
 		ch->psg.env_mode = 0;
 		ch->psg.env_phase = 0;
 		ch->psg.env_counter = 0;
@@ -643,6 +666,9 @@ void snd_assign_channel(struct snd_channel* ch, u8 arg)
 		{
 			snd_psg_set_env(ch);
 			snd_psg_write_volume(ch);
+			take_z80();
+			snd_write_fm(ch, 0xb4, ch->pan_lfo);
+			release_z80();
 		}
 	}
 	else if(arg > 0)
@@ -805,6 +831,57 @@ void snd_cmd_pcm(struct snd_track* trk)
 	trk->position++;
 }
 
+void snd_cmd_comm(struct snd_track* trk)
+{
+	trk->position++;
+}
+
+void snd_cmd_fm3(struct snd_track* trk)
+{
+	//static const u16 transpose[4] = {0, 0x600>>1, 0x7cc>>1, 0x980>>1};
+	static const u16 transpose[5] = {0, 0x600<<0, 0x7cc<<0, 0x980<<0, 0x7cc<<0};
+	u8 flag = arg8(trk);
+
+	take_z80();
+	snd_write_fm_common(0x27, flag);
+	release_z80();
+	if(flag & 0xc0)
+	{
+		union
+		{
+			u16 pitch;
+			struct
+			{
+				u8 note;
+				u8 frac;
+			};
+		} p, p2;
+
+		p.note = arg8(trk);
+		p.frac = 0;
+
+		for(int i = 0; i < 3; i++)
+		{
+			u8 octave;
+			const u16* base;
+
+			u16 tp = transpose[arg8(trk)];
+			p2.pitch = p.pitch + (tp & 0xff);
+
+			octave = p2.note / 12;
+			base = &snd_fm_fnum_table[(p.note % 12) + (tp >> 8)];
+
+			p2.pitch = base[0] + (((base[1] - base[0]) * p2.frac) >> 8) + ((octave & 7) << 11);
+
+			take_z80();
+			snd_write_fm_common(0xac + i, p2.note);
+			snd_write_fm_common(0xa8 + i, p2.frac);
+			release_z80();
+		}
+	}
+
+
+}
 //=====================================================================
 
 void snd_cmd_nop_ch(struct snd_channel* ch, u8 arg)
@@ -921,6 +998,23 @@ void snd_cmd_pan(struct snd_channel* ch, u8 arg)
 	}
 }
 
+void snd_cmd_link(struct snd_channel* ch, u8 arg)
+{
+	if(ch->mode == SND_MODE_PSG)
+	{
+		ch->psg.link = arg;
+		ch->last_pitch = 0xffff;
+	}
+}
+
+void snd_cmd_link_vol(struct snd_channel* ch, u8 arg)
+{
+	if(ch->mode == SND_MODE_PSG)
+	{
+		ch->psg.link_vol = arg;
+	}
+}
+
 static const void* snd_cmd_table[32] =
 {
 /* 00 */ snd_cmd_nop,
@@ -933,7 +1027,7 @@ static const void* snd_cmd_table[32] =
 /* 07 */ snd_cmd_patch,
 /* 08 */ snd_cmd_volume,
 /* 09 */ snd_cmd_jump,
-/* 0a */ snd_cmd_return, // *** UNUSED ***
+/* 0a */ snd_cmd_link, // ctr: PSG link mode
 /* 0b */ snd_cmd_repeat,
 /* 0c */ snd_cmd_loop,
 /* 0d */ snd_cmd_transpose,
@@ -943,16 +1037,16 @@ static const void* snd_cmd_table[32] =
 /* 11 */ snd_cmd_legato,
 /* 12 */ snd_cmd_gate_time,
 /* 13 */ snd_cmd_peg_depth,
-/* 14 */ snd_cmd_env, // TODO: set PSG envelope
+/* 14 */ snd_cmd_env, // ctr: set PSG envelope
 /* 15 */ snd_cmd_delay,
 /* 16 */ snd_cmd_lfo, // lfo
 /* 17 */ snd_cmd_pan, // pan
 /* 18 */ snd_assign_channel, // ctr: Initialize channel
-/* 19 */ snd_cmd_nop, // communication byte
+/* 19 */ snd_cmd_comm, // communication byte
 /* 1a */ snd_cmd_init,
 /* 1b */ snd_cmd_pcm, // TODO: ADPCM request
-/* 1c */ snd_cmd_nop, // *** UNUSED ***
-/* 1d */ snd_cmd_nop, // *** UNUSED ***
+/* 1c */ snd_cmd_fm3, // fm3 special mode
+/* 1d */ snd_cmd_link_vol, // ctr: link mode attenuation
 /* 1e */ snd_cmd_nop, // *** UNUSED ***
 /* 1f */ snd_cmd_nop, // *** UNUSED ***
 };
@@ -1113,8 +1207,11 @@ static inline void snd_update_track(struct snd_track* trk, u8 se)
 	}
 }
 
+static const u16 snd_fm_fnum_table[21] = {
+	644, 681, 722, 765, 810, 858, 910, 964, 1021, 1081, 1146, 1214,
+	1288,1364,1445,1531,1622,1719,1821,1929,2044};
 static const s8 snd_psg_vol_table[128] = {
-	62,62,62,61,61,61,60,60,
+	61,60,60,
 	59,59,59,58,58,58,57,57,
 	56,56,56,55,55,55,54,54,
 	53,53,53,52,52,52,51,51,
@@ -1129,5 +1226,6 @@ static const s8 snd_psg_vol_table[128] = {
 	26,26,26,25,25,25,24,24,
 	23,23,23,22,22,22,21,21,
 	20,20,20,19,19,19,18,18,
-	17,17,17,16,16,16,15,15
+	17,17,17,16,16,16,15,15,
+	15,15,15,15,15
 };
