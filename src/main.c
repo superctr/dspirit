@@ -11,6 +11,8 @@ u16 cursor;
 #define ITEM_SE1 1
 #define ITEM_MAX 1
 
+const char* channel_string[10] = {"---", "FM1", "FM2", "FM3", "FM4", "FM5", "FM6", "PS1", "PS2", "PS3"};
+
 /* Temp text buffer */
 static char buf[40];
 static bool pause = FALSE;
@@ -54,7 +56,7 @@ int main(u16 hard)
 		switch(action)
 		{
 			default:
-				draw_status(12, 20);
+				draw_status(12, 19);
 				break;
 			case MENU_ACTION_UD: // Update cursor
 				break;
@@ -112,10 +114,13 @@ void init_menu()
 	VDP_setTextPalette(0);
 	VDP_drawText("Dragon Spirit Sound Driver", 2, 2);
 	VDP_drawText("%", 38, 1);
-	VDP_drawText("Position:", 2, 20);
-	VDP_drawText("Patch:", 2, 21);
-	VDP_drawText("Volume:", 2, 22);
-	VDP_drawText("Note:", 2, 23);
+	VDP_drawText("Position:", 2, 19);
+	VDP_drawText("Chn:", 2, 20);
+	VDP_drawText("Ins:", 2, 21);
+	VDP_drawText("Env:", 2, 22);
+	VDP_drawText("Vol:", 2, 23);
+	VDP_drawText("Frq:", 2, 24);
+	VDP_drawText("Flag:", 2, 25);
 };
 
 /*
@@ -123,61 +128,60 @@ void init_menu()
  */
 void draw_status(u16 x, u16 y)
 {
+	static u8 frame_cnt = 0;
+
 	VDP_setTextPalette((pause) ? 1 : 0);
 #if SHOW_FRAMELOAD
 #else
 	sprintf(buf, "%04x", snd_bgm.position);
 	VDP_setTextPalette((pause) ? 1 : 0);
 	VDP_drawText(buf, x, y);
-#if 1
-	sprintf(buf, "%02x %02x %02x %02x %02x %02x %02x %02x",
-			snd_bgm.channels[0].patch,
-			snd_bgm.channels[1].patch,
-			snd_bgm.channels[2].patch,
-			snd_bgm.channels[3].patch,
-			snd_bgm.channels[4].patch,
-			snd_bgm.channels[5].patch,
-			snd_bgm.channels[6].patch,
-			snd_bgm.channels[7].patch);
-	VDP_drawText(buf, x, y+1);
-#else
-	sprintf(buf, "%02x %02x %02x %04x",
-			snd_bgm.channels[0].env,
-			snd_bgm.channels[0].psg.env_mode,
-			snd_bgm.channels[0].psg.env_phase,
-			snd_bgm.channels[0].psg.env_counter);
-#endif
-	VDP_drawText(buf, x, y+1);
-	sprintf(buf, "%02x %02x %02x %02x %02x %02x %02x %02x",
-			snd_bgm.channels[0].volume,
-			snd_bgm.channels[1].volume,
-			snd_bgm.channels[2].volume,
-			snd_bgm.channels[3].volume,
-			snd_bgm.channels[4].volume,
-			snd_bgm.channels[5].volume,
-			snd_bgm.channels[6].volume,
-			snd_bgm.channels[7].volume);
-	VDP_drawText(buf, x, y+2);
-	sprintf(buf, "%02x %02x %02x %02x %02x %02x %02x %02x",
-			snd_bgm.channels[0].note,
-			snd_bgm.channels[1].note,
-			snd_bgm.channels[2].note,
-			snd_bgm.channels[3].note,
-			snd_bgm.channels[4].note,
-			snd_bgm.channels[5].note,
-			snd_bgm.channels[6].note,
-			snd_bgm.channels[7].note);
-	VDP_drawText(buf, x, y+3);
-	sprintf(buf, "%02x %02x %02x %02x %02x %02x %02x %02x",
-			snd_bgm.channels[0].flag,
-			snd_bgm.channels[1].flag,
-			snd_bgm.channels[2].flag,
-			snd_bgm.channels[3].flag,
-			snd_bgm.channels[4].flag,
-			snd_bgm.channels[5].flag,
-			snd_bgm.channels[6].flag,
-			snd_bgm.channels[7].flag);
-	VDP_drawText(buf, x, y+4);
+
+	y++;
+	x = 7;
+	struct snd_channel* ch = &snd_bgm.channels[0];
+	while(ch != &snd_bgm.channels[8])
+	{
+		switch(frame_cnt & 3)
+		{
+			case 0:
+				if(ch->channel_id < 10)
+				{
+					VDP_drawText(channel_string[ch->channel_id], x, y);
+				}
+				else
+				{
+					intToStr(ch->channel_id, buf, 3);
+					VDP_drawText(buf, x, y);
+				}
+				break;
+			case 1:
+				intToStr(ch->patch, buf, 3);
+				VDP_drawText(buf, x, y+1);
+				break;
+			case 2:
+				intToStr(ch->env, buf, 3);
+				VDP_drawText(buf, x, y+2);
+				break;
+			case 3:
+				intToStr(ch->volume, buf, 3);
+				VDP_drawText(buf, x, y+3);
+				break;
+		}
+		if(frame_cnt & 1)
+		{
+			intToStr(ch->note,buf, 3);
+			VDP_drawText(buf, x, y+4);
+		}
+		else
+		{
+			intToHex(ch->flag,buf, 2);
+			VDP_drawText(buf, x+1, y+5);
+		}
+		x += 4;
+		ch++;
+	}
+	frame_cnt++;
 #endif
 }
 

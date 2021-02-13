@@ -998,7 +998,7 @@ void snd_cmd_env(struct snd_channel* ch, u8 arg)
 void snd_cmd_volume(struct snd_channel* ch, u8 arg)
 {
 	ch->volume = (arg * snd_track_vol) >> 8;
-	if(ch->flag & SND_FLAG_FG)
+	if(ch->flag & SND_FLAG_FG && !(ch->flag & SND_FLAG_RESTORE))
 	{
 		if (ch->mode == SND_MODE_FM)
 			snd_fm_set_volume(ch);
