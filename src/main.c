@@ -4,6 +4,9 @@
 
 u16 cursor;
 
+#define SHOW_FRAMELOAD 0
+#define INITIAL_BGM 8
+
 #define ITEM_BGM 0
 #define ITEM_SE1 1
 #define ITEM_MAX 1
@@ -24,6 +27,9 @@ int main(u16 hard)
 {
 	JOY_init();
 	VDP_drawText("Initializing ...", 2, 2);
+#if SHOW_FRAMELOAD
+	SYS_showFrameLoad();
+#endif
 
 	/*
 	 *  Initialize MDSDRV (done once)
@@ -98,7 +104,7 @@ int main(u16 hard)
 void init_menu()
 {
 	VDP_clearPlane(0, FALSE);
-	menu_add_item(ITEM_BGM, "BGM", 4, 0, 0x7f);
+	menu_add_item(ITEM_BGM, "BGM", INITIAL_BGM, 0, 0x7f);
 	menu_add_item(ITEM_SE1, "SE1", 0, 0, 1);
 
 	menu_init(ITEM_MAX);
@@ -117,6 +123,9 @@ void init_menu()
  */
 void draw_status(u16 x, u16 y)
 {
+	VDP_setTextPalette((pause) ? 1 : 0);
+#if SHOW_FRAMELOAD
+#else
 	sprintf(buf, "%04x", snd_bgm.position);
 	VDP_setTextPalette((pause) ? 1 : 0);
 	VDP_drawText(buf, x, y);
@@ -169,5 +178,6 @@ void draw_status(u16 x, u16 y)
 			snd_bgm.channels[6].flag,
 			snd_bgm.channels[7].flag);
 	VDP_drawText(buf, x, y+4);
+#endif
 }
 

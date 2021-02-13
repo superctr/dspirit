@@ -38,14 +38,14 @@ OBJS = \
 	$(OBJ)/_pitenv.o \
 	$(OBJ)/_patch.o \
 	$(OBJ)/init.o \
-	$(OBJ)/opening.o \
+	$(OBJ)/opening_md.o \
 	$(OBJ)/departure_md.o \
 	$(OBJ)/area1_md.o \
 	$(OBJ)/area2_md.o \
-	$(OBJ)/area3.o \
-	$(OBJ)/area4.o \
-	$(OBJ)/area5.o \
-	$(OBJ)/area6.o \
+	$(OBJ)/area3_md.o \
+	$(OBJ)/area4_md.o \
+	$(OBJ)/area5_md.o \
+	$(OBJ)/area6_md.o \
 	$(OBJ)/area7.o \
 	$(OBJ)/area8.o \
 	$(OBJ)/area91.o \

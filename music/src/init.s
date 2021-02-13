@@ -17,7 +17,7 @@
 .endproc
 
 .proc psg_test
-	CHANNEL		007,___,___,___,___,___,___,___
+	CHANNEL		008,___,___,___,___,___,___,___
 	TVOL	255
 	TEMPO		010
 	SPEED		001

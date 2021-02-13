@@ -43,6 +43,7 @@ enum
 	SND_FLAG_KEYON = 0x20,
 	SND_FLAG_KEYOFF = 0x10,
 	SND_FLAG_ENV = 0x08, // PSG envelope defined
+	SND_FLAG_LFO = 0x04, // lfo loaded
 };
 
 //=====================================================================
@@ -59,6 +60,10 @@ static u8 snd_track_se;
 static u8 snd_track_vol;
 static u8 snd_fm_attenuate;
 static u8 snd_psg_attenuate;
+
+static u8 snd_lfo;
+static u8 snd_lfo_depth;
+
 static union
 {
 	u16 ctr;
@@ -81,6 +86,8 @@ void snd_init()
 	memset(&snd_bgm, 0, sizeof(snd_bgm));
 	snd_se_flag = 0;
 	snd_bgm_fade.ctr = 0;
+	snd_lfo = -1;
+	snd_lfo_depth = 0xff;
 }
 
 void snd_request_bgm(u8 id)
@@ -282,7 +289,49 @@ static inline void snd_fm_write_volume(struct snd_channel* ch)
 
 static inline void snd_fm_set_lfo(struct snd_channel* ch)
 {
-	//TODO:LFO
+	u8 lfo = ch->lfo;
+	u8 pan_lfo = ch->pan_lfo & 0xc0;
+	if(lfo != 0xff)
+	{
+		if(lfo != snd_lfo)
+		{
+			const u8* ptr = get_u8(read_u16(4) + (lfo << 1));
+			snd_lfo = lfo;
+			snd_lfo_depth = *ptr++;
+
+			take_z80();
+			YM2612_writeReg(0, 0x22, *ptr);
+			release_z80();
+		}
+
+		if(ch->lfo)
+		{
+			const u8 ams_sub = snd_lfo_depth & 0x30;
+			const u8 pms_sub = snd_lfo_depth & 0x07;
+			s8 ams = ch->fm.patch_lfo & 0x30;
+			s8 pms = ch->fm.patch_lfo & 0x07;
+			ch->pan_lfo &= 0xc0;
+
+			if(ams && ams_sub < 0x30)
+			{
+				if((ams - ams_sub) >= 0)
+					pan_lfo |= ams - ams_sub;
+				else
+					pan_lfo |= 0x10;
+			}
+			if(pms && pms_sub < 0x07)
+			{
+				if((pms - pms_sub) >= 0)
+					pan_lfo |= pms - pms_sub;
+				else
+					pan_lfo |= 0x01;
+			}
+		}
+	}
+	ch->pan_lfo = pan_lfo;
+	take_z80();
+	snd_write_fm(ch, 0xb4, ch->pan_lfo);
+	release_z80();
 }
 
 static inline void snd_fm_update_reset(struct snd_channel* ch)
@@ -298,9 +347,10 @@ static inline void snd_fm_update_reset(struct snd_channel* ch)
 	}
 	ch->peg_mod = 0;
 
-	if(ch->lfo)
+	if(ch->flag & SND_FLAG_LFO)
 	{
-		//TODO:LFO
+		ch->flag &= ~SND_FLAG_LFO;
+		snd_fm_set_lfo(ch);
 	}
 
 	snd_fm_write_volume(ch);
@@ -546,7 +596,8 @@ static inline void snd_psg_update_pitch(struct snd_channel* ch)
 				if(ch->psg.link)
 				{
 					p.note = snd_bgm.channels[ch->psg.link - 1].transpose - 24;
-					p.note += snd_bgm.channels[ch->psg.link - 1].note;
+					p.frac = ch->detune;
+					p.pitch += snd_bgm.channels[ch->psg.link - 1].pitch + ch->peg_mod;
 				}
 				if(ch->psg.env_mode & ENV_MODE_2CH_FINE_TUNE)
 					p.pitch += ((s8) ch->psg.env_ptr[1]) << 1;
@@ -618,7 +669,7 @@ static void snd_free_channel(struct snd_channel* ch)
 	{
 		snd_write_key(ch, 0);
 		take_z80();
-		snd_write_fm(ch, 0x40, 127);
+		snd_write_fm(ch, 0x40, 127); // TL
 		snd_write_fm(ch, 0x44, 127);
 		snd_write_fm(ch, 0x48, 127);
 		snd_write_fm(ch, 0x4c, 127);
@@ -666,9 +717,6 @@ void snd_assign_channel(struct snd_channel* ch, u8 arg)
 		{
 			snd_psg_set_env(ch);
 			snd_psg_write_volume(ch);
-			take_z80();
-			snd_write_fm(ch, 0xb4, ch->pan_lfo);
-			release_z80();
 		}
 	}
 	else if(arg > 0)
@@ -689,6 +737,9 @@ void snd_assign_channel(struct snd_channel* ch, u8 arg)
 		{
 			snd_fm_set_patch(ch);
 			snd_fm_set_volume(ch);
+			take_z80();
+			snd_write_fm(ch, 0xb4, ch->pan_lfo);
+			release_z80();
 		}
 	}
 }
@@ -917,9 +968,13 @@ void snd_cmd_key_on(struct snd_channel* ch, u8 arg)
 
 void snd_cmd_patch(struct snd_channel* ch, u8 arg)
 {
+	// Optimize patch writes to save some CPU load
+	u8 prev_flags = ch->flag;
+	u8 prev_patch = ch->patch;
 	ch->patch = arg;
 	ch->flag |= SND_FLAG_PATCH;
-	if(ch->flag & SND_FLAG_FG && ch->mode == SND_MODE_FM)
+	if(ch->flag & SND_FLAG_FG && ch->mode == SND_MODE_FM
+	   && (!(prev_flags & SND_FLAG_PATCH) || prev_patch != arg))
 		snd_fm_set_patch(ch);
 }
 
@@ -985,6 +1040,7 @@ void snd_cmd_delay(struct snd_channel* ch, u8 arg)
 void snd_cmd_lfo(struct snd_channel* ch, u8 arg)
 {
 	ch->lfo = arg;
+	ch->flag |= SND_FLAG_LFO;
 }
 
 void snd_cmd_pan(struct snd_channel* ch, u8 arg)
@@ -1139,8 +1195,8 @@ static inline void snd_update_track(struct snd_track* trk, u8 se)
 				//KDebug_Alert("Starting BGM track");
 				//KDebug_AlertNumber(trk->position);
 				take_z80();
-				YM2612_writeReg(0, 0x2b, 0x00);
-				YM2612_writeReg(0, 0x27, 0x00);
+				YM2612_writeReg(0, 0x2b, 0x00); // dac disable
+				YM2612_writeReg(0, 0x27, 0x00); // ch3 special disable
 				release_z80();
 			}
 			trk->request = 0;
