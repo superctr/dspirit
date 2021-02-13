@@ -44,6 +44,7 @@ enum
 	SND_FLAG_KEYOFF = 0x10,
 	SND_FLAG_ENV = 0x08, // PSG envelope defined
 	SND_FLAG_LFO = 0x04, // lfo loaded
+	SND_FLAG_RESTORE = 0x02, // need to restore patch
 };
 
 //=====================================================================
@@ -256,7 +257,7 @@ static inline void snd_fm_set_patch(struct snd_channel* ch)
 	ch->fm.patch_ptr = ptr;
 	ch->fm.carrier = fm_con[ptr[0] & 7];
 	ch->fm.patch_lfo = ((ptr[3] & 0x70) >> 4) | ((ptr[3] & 3) << 4);
-	ch->pan_lfo = 0xc0;
+	ch->pan_lfo &= 0xc0;
 
 	snd_write_fm_nobusy(ch, 0xb4, 0x00);
 	snd_write_fm_nobusy(ch, 0xb0, ptr[0] & 0x3f);
@@ -267,9 +268,8 @@ static inline void snd_fm_set_patch(struct snd_channel* ch)
 
 	for(int i = 0; i <= ch->fm.carrier; i++)
 		snd_write_fm(ch, 0x4c - (i << 2), 0x7f);
-
-	snd_write_fm(ch, 0xb4, ch->pan_lfo);
 	release_z80();
+	ch->flag |= SND_FLAG_LFO;
 
 	snd_fm_set_volume(ch);
 }
@@ -346,6 +346,13 @@ static inline void snd_fm_update_reset(struct snd_channel* ch)
 		snd_set_peg(ch);
 	}
 	ch->peg_mod = 0;
+
+	if(ch->flag & SND_FLAG_RESTORE)
+	{
+		ch->flag &= ~SND_FLAG_RESTORE;
+		snd_fm_set_patch(ch);
+		snd_fm_set_volume(ch);
+	}
 
 	if(ch->flag & SND_FLAG_LFO)
 	{
@@ -715,6 +722,7 @@ void snd_assign_channel(struct snd_channel* ch, u8 arg)
 		ch->psg.env_counter = 0;
 		if(ch->flag & SND_FLAG_FG && ch->flag & SND_FLAG_ENV)
 		{
+			ch->flag |= SND_FLAG_RESTORE;
 			snd_psg_set_env(ch);
 			snd_psg_write_volume(ch);
 		}
@@ -735,11 +743,11 @@ void snd_assign_channel(struct snd_channel* ch, u8 arg)
 		}
 		if(ch->flag & SND_FLAG_FG && ch->flag & SND_FLAG_PATCH)
 		{
-			snd_fm_set_patch(ch);
-			snd_fm_set_volume(ch);
-			take_z80();
-			snd_write_fm(ch, 0xb4, ch->pan_lfo);
-			release_z80();
+			ch->flag |= SND_FLAG_RESTORE;
+		}
+		else
+		{
+			ch->lfo = 0xff;
 		}
 	}
 }
@@ -971,6 +979,7 @@ void snd_cmd_patch(struct snd_channel* ch, u8 arg)
 	// Optimize patch writes to save some CPU load
 	u8 prev_flags = ch->flag;
 	u8 prev_patch = ch->patch;
+	ch->pan_lfo = 0xc0;
 	ch->patch = arg;
 	ch->flag |= SND_FLAG_PATCH;
 	if(ch->flag & SND_FLAG_FG && ch->mode == SND_MODE_FM

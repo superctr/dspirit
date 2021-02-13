@@ -5,7 +5,7 @@
 u16 cursor;
 
 #define SHOW_FRAMELOAD 0
-#define INITIAL_BGM 8
+#define INITIAL_BGM 9
 
 #define ITEM_BGM 0
 #define ITEM_SE1 1
