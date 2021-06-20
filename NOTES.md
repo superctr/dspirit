@@ -11,7 +11,7 @@
 - `SPEED` - Set track tempo
 - `TVOL` - Set track volume
 - `PCM <data>` - Request PCM sample. Not yet implemented.
-- `COMM <data>` - used by sound test to identify speaker. Not used here`
+- `COMM <data>` - used by sound test to identify speaker. Not used here
 - `CH3 <flag> [<note>,<offset1>,<offset2>,<offset3>]` If flag is 0x40, enable
   Ch3 special mode and read extra parameters. Offsets correspond to OPM DT2
   values for operators 1-3.
